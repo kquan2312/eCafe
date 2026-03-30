@@ -14,42 +14,45 @@ const BillItemService = {
   },
 
   // 👉 Thêm món vào bill
-  async addItem(bill_id, item_id, quantity = 1) {
-    // 1. Lấy giá hiện tại của item
-    const [[item]] = await pool.query(
-      'SELECT price FROM items WHERE id = ?',
-      [item_id]
+ async addItem(bill_id, item_id, quantity = 1) {
+  if (quantity <= 0) throw new Error('Invalid quantity');
+
+  const [[bill]] = await pool.query(
+    `SELECT * FROM bills WHERE id = ? AND status = 'open'`,
+    [bill_id]
+  );
+  if (!bill) throw new Error('Bill is not open');
+
+  const [[item]] = await pool.query(
+    `SELECT * FROM items WHERE id = ?`,
+    [item_id]
+  );
+  if (!item) throw new Error('Item not found');
+
+  const [[existing]] = await pool.query(
+    `SELECT * FROM bill_items 
+     WHERE bill_id = ? AND item_id = ?`,
+    [bill_id, item_id]
+  );
+
+  if (existing) {
+    await pool.query(
+      `UPDATE bill_items 
+       SET quantity = quantity + ?
+       WHERE id = ?`,
+      [quantity, existing.id]
     );
-
-    if (!item) throw new Error('Item not found');
-
-    // 2. Check đã có trong bill chưa
-    const [[existing]] = await pool.query(
-      `SELECT * FROM bill_items 
-       WHERE bill_id = ? AND item_id = ?`,
-      [bill_id, item_id]
+  } else {
+    await pool.query(
+      `INSERT INTO bill_items (bill_id, item_id, quantity, price)
+       VALUES (?, ?, ?, ?)`,
+      [bill_id, item_id, quantity, item.price]
     );
+  }
 
-    if (existing) {
-      // 👉 Nếu có rồi → tăng số lượng
-      await pool.query(
-        `UPDATE bill_items 
-         SET quantity = quantity + ?
-         WHERE id = ?`,
-        [quantity, existing.id]
-      );
-    } else {
-      // 👉 Nếu chưa có → insert mới
-      await pool.query(
-        `INSERT INTO bill_items (bill_id, item_id, quantity, price)
-         VALUES (?, ?, ?, ?)`,
-        [bill_id, item_id, quantity, item.price]
-      );
-    }
-
-    // 🔥 Update total bill
-    await this.updateBillTotal(bill_id);
-  },
+  await this.updateBillTotal(bill_id);
+},
+  
 
   // 👉 Update số lượng
   async updateQuantity(id, quantity) {

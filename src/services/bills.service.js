@@ -19,21 +19,49 @@ const BillService = {
   },
 
   async create(data) {
-    const { table_id } = data;
+  const { table_id } = data;
 
-    const [result] = await pool.query(
-      `INSERT INTO bills (table_id, total, status)
-       VALUES (?, 0, 'open')`,
-      [table_id]
-    );
+  // 1. Check bàn tồn tại
+  const [[table]] = await pool.query(
+    'SELECT * FROM tables WHERE id = ?',
+    [table_id]
+  );
 
-    return {
-      id: result.insertId,
-      table_id,
-      total: 0,
-      status: 'open'
-    };
-  },
+  if (!table) {
+    throw new Error('Table not found');
+  }
+
+  // 2. Check đã có bill open chưa
+  const [existing] = await pool.query(
+    `SELECT * FROM bills 
+     WHERE table_id = ? AND status = 'open'`,
+    [table_id]
+  );
+
+  if (existing.length) {
+    return existing[0]; // dùng lại bill cũ
+  }
+
+  // 3. Tạo bill mới
+  const [result] = await pool.query(
+    `INSERT INTO bills (table_id, total, status)
+     VALUES (?, 0, 'open')`,
+    [table_id]
+  );
+
+  // 4. Update trạng thái bàn
+  await pool.query(
+    `UPDATE tables SET status = 'occupied' WHERE id = ?`,
+    [table_id]
+  );
+
+  return {
+    id: result.insertId,
+    table_id,
+    total: 0,
+    status: 'open'
+  };
+},
 
   async update(id, data) {
     const { table_id, total, status } = data;
