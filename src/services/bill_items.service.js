@@ -55,35 +55,141 @@ const BillItemService = {
   
 
   // 👉 Update số lượng
-  async updateQuantity(id, quantity) {
-    await pool.query(
-      `UPDATE bill_items SET quantity = ? WHERE id = ?`,
-      [quantity, id]
-    );
+  async updateQuantity(id, action) {
+  const conn = await pool.getConnection();
 
-    // lấy bill_id để update total
-    const [[row]] = await pool.query(
-      'SELECT bill_id FROM bill_items WHERE id = ?',
+  try {
+    await conn.beginTransaction();
+
+    // 1. Lấy item
+    const [[item]] = await conn.query(
+      'SELECT quantity, bill_id FROM bill_items WHERE id = ?',
       [id]
     );
 
-    await this.updateBillTotal(row.bill_id);
-  },
+    if (!item) {
+      throw new Error('Bill item not found');
+    }
+
+    // 2. Check bill open
+    const [[bill]] = await conn.query(
+      'SELECT status FROM bills WHERE id = ?',
+      [item.bill_id]
+    );
+
+    if (!bill || bill.status !== 'open') {
+      throw new Error('Bill is closed');
+    }
+
+    // 3. Xử lý action
+    if (action === 'increase') {
+      await conn.query(
+        'UPDATE bill_items SET quantity = quantity + 1 WHERE id = ?',
+        [id]
+      );
+
+    } else if (action === 'decrease') {
+
+      if (item.quantity <= 1) {
+        // 👉 xoá luôn
+        await conn.query(
+          'DELETE FROM bill_items WHERE id = ?',
+          [id]
+        );
+      } else {
+        // 👉 giảm 1
+        await conn.query(
+          'UPDATE bill_items SET quantity = quantity - 1 WHERE id = ?',
+          [id]
+        );
+      }
+
+    } else {
+      throw new Error('Invalid action');
+    }
+
+    // 4. Update total
+    const [[result]] = await conn.query(`
+      SELECT SUM(quantity * price) AS total
+      FROM bill_items
+      WHERE bill_id = ?
+    `, [item.bill_id]);
+
+    await conn.query(
+      'UPDATE bills SET total = ? WHERE id = ?',
+      [result.total || 0, item.bill_id]
+    );
+
+    await conn.commit();
+
+    return { message: 'Updated successfully' };
+
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+},
 
   // 👉 Xoá món
   async delete(id) {
-    const [[row]] = await pool.query(
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1. Check tồn tại
+    const [[row]] = await conn.query(
       'SELECT bill_id FROM bill_items WHERE id = ?',
       [id]
     );
 
-    await pool.query(
+    if (!row) {
+      throw new Error('Bill item not found');
+    }
+
+    // 2. Check bill còn open
+    const [[bill]] = await conn.query(
+      'SELECT status FROM bills WHERE id = ?',
+      [row.bill_id]
+    );
+
+    if (!bill || bill.status !== 'open') {
+      throw new Error('Bill is closed');
+    }
+
+    // 3. Xoá item
+    await conn.query(
       'DELETE FROM bill_items WHERE id = ?',
       [id]
     );
 
-    await this.updateBillTotal(row.bill_id);
-  },
+    // 4. Tính lại total
+    const [[result]] = await conn.query(`
+      SELECT SUM(quantity * price) AS total
+      FROM bill_items
+      WHERE bill_id = ?
+    `, [row.bill_id]);
+
+    const total = result.total || 0;
+
+    await conn.query(
+      'UPDATE bills SET total = ? WHERE id = ?',
+      [total, row.bill_id]
+    );
+
+    await conn.commit();
+
+    return { message: 'Deleted successfully' };
+
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+},
 
   // 🔥 TÍNH TOTAL BILL (QUAN TRỌNG NHẤT)
   async updateBillTotal(bill_id) {

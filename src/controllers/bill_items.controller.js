@@ -15,12 +15,20 @@ const BillItemController = {
   },
 
   async updateQuantity(req, res) {
-    const { id } = req.params;
-    const { quantity } = req.body;
+  const { id } = req.params;
+  const { action } = req.body; // action = 'increase' | 'decrease'
 
-    await BillItemService.updateQuantity(id, quantity);
+  if (!['increase', 'decrease'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid action' });
+  }
+
+  try {
+    await BillItemService.updateQuantity(id, action);
     res.json({ message: 'Updated successfully' });
-  },
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+},
 
   async delete(req, res) {
     const { id } = req.params;
