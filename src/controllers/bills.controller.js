@@ -1,14 +1,14 @@
-const ItemService = require('../services/items.service');
+const BillService = require('../services/bills.service');
 
-const ItemController = {
+const BillController = {
   async getAll(req, res) {
-    const data = await ItemService.getAll();
+    const data = await BillService.getAll();
     res.json(data);
   },
 
   async getById(req, res) {
     const { id } = req.params;
-    const data = await ItemService.getById(id);
+    const data = await BillService.getById(id);
 
     if (!data) {
       return res.status(404).json({ message: 'Not found' });
@@ -18,21 +18,21 @@ const ItemController = {
   },
 
   async create(req, res) {
-    const data = await ItemService.create(req.body);
+    const data = await BillService.create(req.body);
     res.status(201).json(data);
   },
 
   async update(req, res) {
     const { id } = req.params;
-    const data = await ItemService.update(id, req.body);
+    const data = await BillService.update(id, req.body);
     res.json(data);
   },
 
   async delete(req, res) {
     const { id } = req.params;
-    const data = await ItemService.delete(id);
+    const data = await BillService.delete(id);
     res.json(data);
   }
 };
 
-module.exports = ItemController;
+module.exports = BillController;
