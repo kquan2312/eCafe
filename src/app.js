@@ -10,26 +10,17 @@ app.use(express.json());
 const logger = require("./utils/logger");
 app.use(logger);
 
-// Table route
-const tableRoute = require("./routes/table.route");
-app.use("/tables", tableRoute);
+// Prefix chung cho API
+const API_PREFIX = "/api";
 
-// Category route
-const categoryRoute = require("./routes/category.route")
-app.use("/category",categoryRoute)
+// Routes
+app.use(`${API_PREFIX}/tables`, require("./routes/table.route"));
+app.use(`${API_PREFIX}/category`, require("./routes/category.route"));
+app.use(`${API_PREFIX}/items`, require("./routes/items.route"));
+app.use(`${API_PREFIX}/bills`, require("./routes/bills.route"));
+app.use(`${API_PREFIX}/bill-items`, require("./routes/bill_items.route"));
 
-// items router
-const itemRouter = require('./routes/items.route');
-app.use('/items', itemRouter);
-
-//bill router
-const billRouter = require('./routes/bills.route');
-app.use('/bills', billRouter);
-
-//bill_items route
-const billItemRouter = require('./routes/bill_items.route');
-app.use('/bill-items', billItemRouter);
-
+// Test endpoint
 app.get("/", (req, res) => res.send("E-Cafe API running 🚀"));
 
 const PORT = process.env.PORT || 3000;

@@ -6,6 +6,7 @@ const ItemService = {
       SELECT i.*, c.name as category_name
       FROM items i
       JOIN categories c ON i.category_id = c.id
+      ORDER BY i.category_id
     `);
     return rows;
   },
