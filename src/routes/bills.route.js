@@ -7,5 +7,6 @@ router.get('/:id', BillController.getById);
 router.post('/', BillController.create);
 router.put('/:id', BillController.update);
 router.delete('/:id', BillController.delete);
+router.post('/:id/checkout', BillController.checkout);
 
 module.exports = router;

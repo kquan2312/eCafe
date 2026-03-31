@@ -76,6 +76,8 @@ const BillService = {
     return { id, table_id, total, status };
   },
 
+  
+
   async delete(id) {
     await pool.query(
       `DELETE FROM bills WHERE id = ?`,
@@ -83,7 +85,78 @@ const BillService = {
     );
 
     return { message: 'Deleted successfully' };
+  },
+  // Checkout: tính tổng, cập nhật bill + bàn
+ async checkout(bill_id) {
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    // 1. Check bill
+    const [[bill]] = await conn.query(
+      'SELECT * FROM bills WHERE id = ? AND status = "open"',
+      [bill_id]
+    );
+
+    if (!bill) {
+      throw new Error('Bill not found or already closed');
+    }
+
+    // 2. Lấy danh sách món + subtotal
+    const [items] = await conn.query(`
+      SELECT 
+        bi.id,
+        bi.quantity,
+        bi.price,
+        (bi.quantity * bi.price) AS subtotal,
+        i.name
+      FROM bill_items bi
+      LEFT JOIN items i ON i.id = bi.item_id
+      WHERE bi.bill_id = ?
+    `, [bill_id]);
+
+    // 3. Tính total từ items
+    // const total = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const total = items.reduce(
+  (sum, item) => sum + Number(item.subtotal),
+  0
+);
+const totalFormatted = total.toLocaleString('vi-VN') + ' vnđ';
+    // 4. Update bill
+    await conn.query(
+      `UPDATE bills 
+       SET total = ?, status = 'closed' 
+       WHERE id = ?`,
+      [total, bill_id]
+    );
+
+    // 5. Update table
+    await conn.query(
+      `UPDATE tables 
+       SET status = 'empty' 
+       WHERE id = ?`,
+      [bill.table_id]
+    );
+
+    await conn.commit();
+
+    return {
+      message: 'Checkout success',
+      bill_id: bill.id,
+      table_id: bill.table_id,
+      created_at: bill.created_at,
+      items,
+      total: totalFormatted
+    };
+
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
   }
+}
 };
 
 module.exports = BillService;   

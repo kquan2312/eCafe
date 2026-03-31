@@ -32,7 +32,18 @@ const BillController = {
     const { id } = req.params;
     const data = await BillService.delete(id);
     res.json(data);
+  },
+
+  async checkout(req, res) {
+  const { id } = req.params;
+
+  try {
+    const data = await BillService.checkout(id);
+    res.json(data);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
+}
 };
 
 module.exports = BillController;
